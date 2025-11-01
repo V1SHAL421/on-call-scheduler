@@ -2,48 +2,21 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
+	"time"
 )
-
-type Schedule struct {
-	Users                []string `json:"users"`
-	HandoverStartDate    string   `json:"handover_start_at"`
-	HandoverIntervalDays int      `json:"handover_interval_days"`
-}
-
-func retrieveFlags() (*string, *string, *string, *string, error) {
-	schedule := flag.String("schedule", "", "path to schedule JSON file")
-	overrides := flag.String("overrides", "", "path to overrides JSON file")
-	from := flag.String("from", "", "start time for the schedule")
-	until := flag.String("until", "", "end time for the schedule")
-
-	if *schedule == "" {
-		return nil, nil, nil, nil, fmt.Errorf("schedule flag is required")
-	}
-	if *overrides == "" {
-		return nil, nil, nil, nil, fmt.Errorf("overrides flag is required")
-	}
-	if *from == "" {
-		return nil, nil, nil, nil, fmt.Errorf("from flag is required")
-	}
-	if *until == "" {
-		return nil, nil, nil, nil, fmt.Errorf("until flag is required")
-	}
-
-	return schedule, overrides, from, until, nil
-}
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
 	// Retrieve flags
-	schedule, overrides, from, until, err := retrieveFlags()
+	schedule, overrides, from, until, retrieveFlagsErr := retrieveFlags()
 
-	if err != nil {
-		slog.Error("Error retrieving flags", "error", err)
+	if retrieveFlagsErr != nil {
+		slog.Error("Error retrieving flags", "error", retrieveFlagsErr)
+		os.Exit(1)
 	}
 	flag.Parse()
 
@@ -51,5 +24,51 @@ func main() {
 	slog.Info("Overrides", "overrides", *overrides)
 	slog.Info("From", "from", *from)
 	slog.Info("Until", "until", *until)
+
+	scheduleFile, scheduleFileErr := os.ReadFile(*schedule)
+	if scheduleFileErr != nil {
+		slog.Error("Error reading schedule file", "error", scheduleFileErr)
+		os.Exit(1)
+	}
+	overridesFile, overridesFileErr := os.ReadFile(*overrides)
+	if overridesFileErr != nil {
+		slog.Error("Error reading overrides file", "error", overridesFileErr)
+		os.Exit(1)
+	}
+
+	scheduleStruct, scheduleStructErr := parseFieldToStruct(scheduleFile, "schedule")
+	if scheduleStructErr != nil {
+		slog.Error("Error parsing schedule field", "error", scheduleStructErr)
+		os.Exit(1)
+	}
+	overridesStruct, overridesStructErr := parseFieldToStruct(overridesFile, "overrides")
+	if overridesStructErr != nil {
+		slog.Error("Error parsing overrides field", "error", overridesStructErr)
+		os.Exit(1)
+	}
+
+	fromTime, fromTimeErr := time.Parse(time.RFC3339, *from)
+	if fromTimeErr != nil {
+		slog.Error("Invalid from time format", "error", fromTimeErr)
+		os.Exit(1)
+	}
+
+	untilTime, untilTimeErr := time.Parse(time.RFC3339, *until)
+	if untilTimeErr != nil {
+		slog.Error("Invalid until time format", "error", untilTimeErr)
+		os.Exit(1)
+	}
+
+	schedulePlan, schedulePlanErr := scheduleStruct.(SchedulePlan)
+	if !schedulePlanErr {
+		slog.Error("Error casting schedule to SchedulePlan")
+		os.Exit(1)
+	}
+
+	initialSchedule, initialScheduleErr := createInitialSchedule(schedulePlan, fromTime, untilTime)
+	if initialScheduleErr != nil {
+		slog.Error("Error creating initial schedule", "error", initialScheduleErr)
+		os.Exit(1)
+	}
 
 }
