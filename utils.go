@@ -103,5 +103,52 @@ func addOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides 
 		return overrides[i].From.Before(overrides[j].From)
 	})
 
-	return initialSchedule, nil
+	result := InitialScheduleIntervals{}
+	i, j := 0, 0
+
+	for i < len(initialSchedule) {
+		current := initialSchedule[i]
+		processed := false
+
+		for j < len(overrides) {
+			override := overrides[j]
+			if override.To.Before(current.From) || override.To.Equal(current.From) {
+				j++
+				continue
+			}
+			if override.From.After(current.To) || override.From.Equal(current.To) {
+				break
+			}
+
+			if override.From.After(current.From) {
+				result = append(result, InitialScheduleInterval{
+					User: current.User,
+					From: current.From,
+					To:   override.From,
+				})
+			}
+
+			result = append(result, InitialScheduleInterval{
+				User: override.User,
+				From: override.From,
+				To:   override.To,
+			})
+
+			if override.To.Before(current.To) {
+				current.From = override.To
+				j++
+			} else {
+				processed = true
+				j++
+				break
+			}
+		}
+
+		if !processed {
+			result = append(result, current)
+		}
+		i++
+	}
+
+	return result, nil
 }

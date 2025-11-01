@@ -65,9 +65,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	overridesCasted, overridesCastedErr := overridesStruct.(Overrides)
+	if !overridesCastedErr {
+		slog.Error("Error casting overrides to OverridesPlan")
+		os.Exit(1)
+	}
+
 	initialSchedule, initialScheduleErr := createInitialSchedule(schedulePlan, fromTime, untilTime)
 	if initialScheduleErr != nil {
 		slog.Error("Error creating initial schedule", "error", initialScheduleErr)
+		os.Exit(1)
+	}
+
+	newSchedule, newScheduleErr := addOverridesToSchedule(initialSchedule, overridesCasted)
+	if newScheduleErr != nil {
+		slog.Error("Error applying overrides", "error", newScheduleErr)
 		os.Exit(1)
 	}
 
