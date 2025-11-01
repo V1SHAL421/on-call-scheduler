@@ -34,12 +34,6 @@ func parseFieldToStruct(field []byte, name string) (interface{}, error) {
 	if len(field) == 0 {
 		return nil, fmt.Errorf("field %s is empty", name)
 	}
-	if field[0] != '{' {
-		return nil, fmt.Errorf("field %s is not a JSON object", name)
-	}
-	if field[len(field)-1] != '}' {
-		return nil, fmt.Errorf("field %s is not a JSON object", name)
-	}
 	switch name {
 	case "schedule":
 		var schedule SchedulePlan
@@ -120,7 +114,7 @@ func addOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides 
 				break
 			}
 
-			if override.From.After(current.From) {
+			if override.From.After(current.From) && !current.From.Equal(override.From) {
 				result = append(result, InitialScheduleInterval{
 					User: current.User,
 					From: current.From,
@@ -128,11 +122,13 @@ func addOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides 
 				})
 			}
 
-			result = append(result, InitialScheduleInterval{
-				User: override.User,
-				From: override.From,
-				To:   override.To,
-			})
+			if !override.From.Equal(override.To) {
+				result = append(result, InitialScheduleInterval{
+					User: override.User,
+					From: override.From,
+					To:   override.To,
+				})
+			}
 
 			if override.To.Before(current.To) {
 				current.From = override.To
@@ -148,6 +144,40 @@ func addOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides 
 			result = append(result, current)
 		}
 		i++
+	}
+
+	return result, nil
+}
+
+func createFinalSchedule(scheduleWithOverrides InitialScheduleIntervals, fromTime time.Time, untilTime time.Time) (InitialScheduleIntervals, error) {
+	if fromTime.After(untilTime) || fromTime.Equal(untilTime) {
+		return nil, fmt.Errorf("from time must be before until time")
+	}
+
+	fmt.Println(scheduleWithOverrides)
+
+	start, end := -1, -1
+	for i, interval := range scheduleWithOverrides {
+		if start == -1 && interval.To.After(fromTime) {
+			start = i
+		}
+		if interval.From.Before(untilTime) {
+			end = i
+		}
+	}
+
+	if start == -1 || end == -1 {
+		return InitialScheduleIntervals{}, nil
+	}
+
+	result := make(InitialScheduleIntervals, end-start+1)
+	copy(result, scheduleWithOverrides[start:end+1])
+
+	if result[0].From.Before(fromTime) {
+		result[0].From = fromTime
+	}
+	if result[len(result)-1].To.After(untilTime) {
+		result[len(result)-1].To = untilTime
 	}
 
 	return result, nil

@@ -11,14 +11,18 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// Retrieve flags
-	schedule, overrides, from, until, retrieveFlagsErr := retrieveFlags()
+	// Define and parse flags
+	schedule := flag.String("schedule", "", "path to schedule JSON file")
+	overrides := flag.String("overrides", "", "path to overrides JSON file")
+	from := flag.String("from", "", "start time for the schedule")
+	until := flag.String("until", "", "end time for the schedule")
+	flag.Parse()
 
-	if retrieveFlagsErr != nil {
-		slog.Error("Error retrieving flags", "error", retrieveFlagsErr)
+	// Validate flags
+	if *schedule == "" || *overrides == "" || *from == "" || *until == "" {
+		slog.Error("All flags are required")
 		os.Exit(1)
 	}
-	flag.Parse()
 
 	slog.Info("Schedule", "schedule", *schedule)
 	slog.Info("Overrides", "overrides", *overrides)
@@ -82,5 +86,13 @@ func main() {
 		slog.Error("Error applying overrides", "error", newScheduleErr)
 		os.Exit(1)
 	}
+
+	finalSchedule, finalScheduleErr := createFinalSchedule(newSchedule, fromTime, untilTime)
+	if finalScheduleErr != nil {
+		slog.Error("Error creating final schedule", "error", finalScheduleErr)
+		os.Exit(1)
+	}
+	// Print the final schedule
+	slog.Info("Final schedule", "finalSchedule", finalSchedule)
 
 }
