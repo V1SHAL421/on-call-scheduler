@@ -65,8 +65,50 @@ The application outputs structured JSON logs including the final schedule:
 
 ## Building
 
+### Using Make (Recommended)
 ```bash
-go build -o render-schedule *.go
+# Build the application
+make build
+
+# Run tests
+make test
+
+# Clean build artifacts
+make clean
+
+# Run with example data
+make run
+```
+
+### Manual Build
+```bash
+cd src && go build -o ../render-schedule *.go
+```
+
+## Project Structure
+
+```
+on-call-scheduler/
+├── src/           # Source code
+│   ├── main.go    # Main application entry point
+│   ├── utils.go   # Core scheduling functions
+│   └── types.go   # Data type definitions
+├── test/          # Test files
+│   └── utils_test.go
+├── schedule.json  # Example schedule configuration
+├── overrides.json # Example override configuration
+├── go.mod         # Go module definition
+├── Makefile       # Build automation
+└── README.md      # This file
+```
+
+## Testing
+
+Run the test suite:
+```bash
+make test
+# or
+go test ./test/...
 ```
 
 ## Algorithm
@@ -75,6 +117,15 @@ go build -o render-schedule *.go
 2. **Override Application**: Applies overrides by splitting and replacing schedule intervals
 3. **Time Window Filtering**: Trims the schedule to the requested time range
 4. **Zero-Duration Cleanup**: Removes any intervals with identical start/end times
+
+## Development
+
+### Dependencies
+- Go 1.21+
+- testify (for testing)
+
+### Adding Tests
+Tests are located in the `test/` directory and use the testify framework. All core functions are exported from the `src` package for testing.
 
 ## Error Handling
 

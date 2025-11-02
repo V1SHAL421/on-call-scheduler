@@ -1,4 +1,4 @@
-package main
+package src
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func parseFieldToStruct(field []byte, name string) (interface{}, error) {
+func ParseFieldToStruct(field []byte, name string) (interface{}, error) {
 	if len(field) == 0 {
 		return nil, fmt.Errorf("field %s is empty", name)
 	}
@@ -32,7 +32,7 @@ func parseFieldToStruct(field []byte, name string) (interface{}, error) {
 	return nil, fmt.Errorf("unknown field name: %s", name)
 }
 
-func createInitialSchedule(schedulePlan SchedulePlan, fromTime time.Time, endTime time.Time) (InitialScheduleIntervals, error) {
+func CreateInitialSchedule(schedulePlan SchedulePlan, fromTime time.Time, endTime time.Time) (InitialScheduleIntervals, error) {
 	if schedulePlan.HandoverIntervalDays <= 0 {
 		return nil, fmt.Errorf("handover interval days must be greater than 0")
 	}
@@ -63,81 +63,89 @@ func createInitialSchedule(schedulePlan SchedulePlan, fromTime time.Time, endTim
 	return initialSchedule, nil
 }
 
-func addOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides Overrides) (InitialScheduleIntervals, error) {
+func AddOverridesToSchedule(initialSchedule InitialScheduleIntervals, overrides Overrides) (InitialScheduleIntervals, error) {
 	if len(overrides) == 0 {
 		return initialSchedule, nil
 	}
 	if len(initialSchedule) == 0 {
 		return nil, fmt.Errorf("initial schedule must be defined")
 	}
-	// Sort overrides by start time for efficient processing
-	sort.Slice(overrides, func(i, j int) bool {
-		return overrides[i].From.Before(overrides[j].From)
+
+	// Filter out zero-duration overrides
+	validOverrides := Overrides{}
+	for _, override := range overrides {
+		if !override.From.Equal(override.To) {
+			validOverrides = append(validOverrides, override)
+		}
+	}
+
+	// If no valid overrides, return original schedule
+	if len(validOverrides) == 0 {
+		return initialSchedule, nil
+	}
+
+	// Sort overrides by start time
+	sort.Slice(validOverrides, func(i, j int) bool {
+		return validOverrides[i].From.Before(validOverrides[j].From)
 	})
 
-	result := InitialScheduleIntervals{}
-	i, j := 0, 0
+	// Start with initial schedule and apply overrides one by one
+	result := make(InitialScheduleIntervals, len(initialSchedule))
+	copy(result, initialSchedule)
 
-	// Process each initial schedule interval
-	for i < len(initialSchedule) {
-		current := initialSchedule[i]
-		processed := false
+	for _, override := range validOverrides {
+		newResult := InitialScheduleIntervals{}
 
-		// Apply all relevant overrides to current interval
-		for j < len(overrides) {
-			override := overrides[j]
-			// Skip overrides that end before current interval starts
-			if override.To.Before(current.From) || override.To.Equal(current.From) {
-				j++
+		for _, interval := range result {
+			// No overlap - keep interval as is
+			if override.To.Before(interval.From) || override.To.Equal(interval.From) ||
+				override.From.After(interval.To) || override.From.Equal(interval.To) {
+				newResult = append(newResult, interval)
 				continue
 			}
-			// Stop processing overrides that start after current interval ends
-			if override.From.After(current.To) || override.From.Equal(current.To) {
-				break
-			}
 
-			// Add pre-override portion if it has duration
-			if override.From.After(current.From) && !current.From.Equal(override.From) {
-				result = append(result, InitialScheduleInterval{
-					User: current.User,
-					From: current.From,
+			// There is overlap - split the interval
+			// Add pre-override part
+			if override.From.After(interval.From) {
+				newResult = append(newResult, InitialScheduleInterval{
+					User: interval.User,
+					From: interval.From,
 					To:   override.From,
 				})
 			}
 
-			// Add override interval if it has duration
-			if !override.From.Equal(override.To) {
-				result = append(result, InitialScheduleInterval{
-					User: override.User,
-					From: override.From,
-					To:   override.To,
+			// Add override part (clipped to interval bounds)
+			overrideStart := override.From
+			overrideEnd := override.To
+			if overrideStart.Before(interval.From) {
+				overrideStart = interval.From
+			}
+			if overrideEnd.After(interval.To) {
+				overrideEnd = interval.To
+			}
+			newResult = append(newResult, InitialScheduleInterval{
+				User: override.User,
+				From: overrideStart,
+				To:   overrideEnd,
+			})
+
+			// Add post-override part
+			if override.To.Before(interval.To) {
+				newResult = append(newResult, InitialScheduleInterval{
+					User: interval.User,
+					From: override.To,
+					To:   interval.To,
 				})
 			}
-
-			// Handle remaining portion of current interval
-			if override.To.Before(current.To) {
-				// Override ends before current interval, continue with remainder
-				current.From = override.To
-				j++
-			} else {
-				// Override covers rest of current interval
-				processed = true
-				j++
-				break
-			}
 		}
 
-		// Add unprocessed portion of current interval
-		if !processed {
-			result = append(result, current)
-		}
-		i++
+		result = newResult
 	}
 
 	return result, nil
 }
 
-func createFinalSchedule(scheduleWithOverrides InitialScheduleIntervals, fromTime time.Time, untilTime time.Time) (InitialScheduleIntervals, error) {
+func CreateFinalSchedule(scheduleWithOverrides InitialScheduleIntervals, fromTime time.Time, untilTime time.Time) (InitialScheduleIntervals, error) {
 	if fromTime.After(untilTime) || fromTime.Equal(untilTime) {
 		return nil, fmt.Errorf("from time must be before until time")
 	}

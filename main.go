@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"time"
+	"on-call-scheduler/src"
 )
 
 // main processes command line arguments and generates an on-call schedule
@@ -47,12 +48,12 @@ func main() {
 	}
 
 	// Parse JSON into structs
-	scheduleStruct, scheduleStructErr := parseFieldToStruct(scheduleFile, "schedule")
+	scheduleStruct, scheduleStructErr := src.ParseFieldToStruct(scheduleFile, "schedule")
 	if scheduleStructErr != nil {
 		slog.Error("Error parsing schedule field", "error", scheduleStructErr)
 		os.Exit(1)
 	}
-	overridesStruct, overridesStructErr := parseFieldToStruct(overridesFile, "overrides")
+	overridesStruct, overridesStructErr := src.ParseFieldToStruct(overridesFile, "overrides")
 	if overridesStructErr != nil {
 		slog.Error("Error parsing overrides field", "error", overridesStructErr)
 		os.Exit(1)
@@ -72,34 +73,34 @@ func main() {
 	}
 
 	// Type cast parsed structs to expected types
-	schedulePlan, schedulePlanErr := scheduleStruct.(SchedulePlan)
+	schedulePlan, schedulePlanErr := scheduleStruct.(src.SchedulePlan)
 	if !schedulePlanErr {
 		slog.Error("Error casting schedule to SchedulePlan")
 		os.Exit(1)
 	}
 
-	overridesCasted, overridesCastedErr := overridesStruct.(Overrides)
+	overridesCasted, overridesCastedErr := overridesStruct.(src.Overrides)
 	if !overridesCastedErr {
 		slog.Error("Error casting overrides to OverridesPlan")
 		os.Exit(1)
 	}
 
 	// Generate initial schedule based on rotation plan
-	initialSchedule, initialScheduleErr := createInitialSchedule(schedulePlan, fromTime, untilTime)
+	initialSchedule, initialScheduleErr := src.CreateInitialSchedule(schedulePlan, fromTime, untilTime)
 	if initialScheduleErr != nil {
 		slog.Error("Error creating initial schedule", "error", initialScheduleErr)
 		os.Exit(1)
 	}
 
 	// Apply overrides to the initial schedule
-	newSchedule, newScheduleErr := addOverridesToSchedule(initialSchedule, overridesCasted)
+	newSchedule, newScheduleErr := src.AddOverridesToSchedule(initialSchedule, overridesCasted)
 	if newScheduleErr != nil {
 		slog.Error("Error applying overrides", "error", newScheduleErr)
 		os.Exit(1)
 	}
 
 	// Trim schedule to requested time window
-	finalSchedule, finalScheduleErr := createFinalSchedule(newSchedule, fromTime, untilTime)
+	finalSchedule, finalScheduleErr := src.CreateFinalSchedule(newSchedule, fromTime, untilTime)
 	if finalScheduleErr != nil {
 		slog.Error("Error creating final schedule", "error", finalScheduleErr)
 		os.Exit(1)
