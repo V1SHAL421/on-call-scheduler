@@ -1,7 +1,7 @@
 .PHONY: build test clean run
 
 build:
-	cd src && go build -o ../render-schedule *.go
+	go build -o render-schedule *.go
 
 test:
 	go test ./test/...
