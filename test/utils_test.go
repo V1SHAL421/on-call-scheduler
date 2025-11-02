@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"on-call-scheduler/src"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"on-call-scheduler/src"
 )
 
 // TestParseFieldToStruct tests JSON parsing functionality for schedule plans and overrides
@@ -126,7 +127,7 @@ func TestAddOverridesToSchedule(t *testing.T) {
 		result, err := src.AddOverridesToSchedule(initialSchedule, overrides)
 
 		require.NoError(t, err)
-		assert.Len(t, result, 4) // Alice split into 2 parts + charlie + bob unchanged
+		assert.Len(t, result, 4)                   // Alice split into 2 parts + charlie + bob unchanged
 		assert.Equal(t, "alice", result[0].User)   // Pre-override alice
 		assert.Equal(t, "charlie", result[1].User) // Override period
 		assert.Equal(t, "alice", result[2].User)   // Post-override alice
@@ -150,65 +151,5 @@ func TestAddOverridesToSchedule(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, initialSchedule, result) // Should be unchanged
-	})
-}
-
-// TestCreateFinalSchedule tests time window filtering and boundary adjustment
-func TestCreateFinalSchedule(t *testing.T) {
-	baseTime := time.Date(2025, 11, 7, 17, 0, 0, 0, time.UTC)
-	// Setup: schedule that extends beyond requested time window
-	schedule := src.InitialScheduleIntervals{
-		{User: "alice", From: baseTime.AddDate(0, 0, -1), To: baseTime.AddDate(0, 0, 3)},   // Starts before window
-		{User: "bob", From: baseTime.AddDate(0, 0, 3), To: baseTime.AddDate(0, 0, 10)},    // Within window
-		{User: "charlie", From: baseTime.AddDate(0, 0, 10), To: baseTime.AddDate(0, 0, 17)}, // Extends beyond window
-	}
-
-	// Test time window trimming: intervals should be clipped to requested time range
-	t.Run("trim to window", func(t *testing.T) {
-		from := baseTime
-		until := baseTime.AddDate(0, 0, 14)
-
-		result, err := src.CreateFinalSchedule(schedule, from, until)
-
-		require.NoError(t, err)
-		assert.Len(t, result, 3)
-		assert.Equal(t, from, result[0].From) // Alice's start trimmed to window start
-		assert.Equal(t, until, result[2].To)  // Charlie's end trimmed to window end
-	})
-
-	// Test no overlap: time window completely outside schedule should return empty result
-	t.Run("no overlap", func(t *testing.T) {
-		from := baseTime.AddDate(0, 0, 20) // Window starts after schedule ends
-		until := baseTime.AddDate(0, 0, 25)
-
-		result, err := src.CreateFinalSchedule(schedule, from, until)
-
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
-
-	// Test validation: from time must be before until time
-	t.Run("invalid time range", func(t *testing.T) {
-		from := baseTime.AddDate(0, 0, 10)
-		until := baseTime // Until is before from
-
-		_, err := src.CreateFinalSchedule(schedule, from, until)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "from time must be before until time")
-	})
-
-	// Test zero-duration filtering: intervals that become zero-duration after trimming should be removed
-	t.Run("filter zero duration after trim", func(t *testing.T) {
-		// Alice's interval ends exactly at window start, should be filtered out
-		scheduleWithEdgeCase := src.InitialScheduleIntervals{
-			{User: "alice", From: baseTime.AddDate(0, 0, -1), To: baseTime},
-			{User: "bob", From: baseTime, To: baseTime.AddDate(0, 0, 7)},
-		}
-
-		result, err := src.CreateFinalSchedule(scheduleWithEdgeCase, baseTime, baseTime.AddDate(0, 0, 7))
-
-		require.NoError(t, err)
-		assert.Len(t, result, 1) // Alice filtered out, only bob remains
-		assert.Equal(t, "bob", result[0].User)
 	})
 }

@@ -4,9 +4,9 @@ package main
 import (
 	"flag"
 	"log/slog"
+	"on-call-scheduler/src"
 	"os"
 	"time"
-	"on-call-scheduler/src"
 )
 
 // main processes command line arguments and generates an on-call schedule
@@ -99,13 +99,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Trim schedule to requested time window
-	finalSchedule, finalScheduleErr := src.CreateFinalSchedule(newSchedule, fromTime, untilTime)
-	if finalScheduleErr != nil {
-		slog.Error("Error creating final schedule", "error", finalScheduleErr)
-		os.Exit(1)
-	}
-
 	// Output the final schedule
-	slog.Info("Final schedule", "finalSchedule", finalSchedule)
+	slog.Info("Final schedule", "finalSchedule", newSchedule)
 }
