@@ -14,3 +14,6 @@ run: build
 
 deps:
 	go mod tidy
+
+zip:
+	git archive --format=zip --output=on-call-scheduler.zip HEAD
